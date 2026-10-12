@@ -1,0 +1,14 @@
+{
+  "name": "lottery-wheel",
+  "version": "1.0.0",
+  "description": "现场抽奖转盘系统 - 前端抽奖 + 后台管理",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ali-oss": "^6.23.0",
+    "express": "^4.22.3",
+    "multer": "^2.4.0"
+  }
+}

@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>后台管理 · 抽奖系统</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --text: #111827;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --border-soft: #f3f4f6;
+    --accent: #111827;
+    --accent-soft: #f3f4f6;
+    --danger: #ef4444;
+    --danger-soft: #fef2f2;
+    --success: #10b981;
+    --warn: #f59e0b;
+  }
+  body {
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ---------- 登录页 ---------- */
+  .login-page {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .login-box {
+    width: 100%; max-width: 360px;
+    text-align: center;
+  }
+  .login-box h1 {
+    font-size: 24px;
+    font-weight: 900;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+  .login-box p { color: var(--text-muted); font-size: 13px; margin-bottom: 32px; }
+  .login-box input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-size: 16px;
+    letter-spacing: 3px;
+    text-align: center;
+    outline: none;
+    transition: border-color .2s;
+    font-family: inherit;
+  }
+  .login-box input:focus { border-color: var(--accent); }
+  .login-box button {
+    width: 100%;
+    margin-top: 16px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 3px;
+    font-family: inherit;
+  }
+  .login-box button:active { transform: scale(.98); }
+  .login-err {
+    color: var(--danger);
+    font-size: 13px;
+    margin-top: 14px;
+    min-height: 18px;
+  }
+
+  /* ---------- 管理后台 ---------- */
+  .admin-page { display: none; padding: 24px; max-width: 1000px; margin: 0 auto; }
+  .admin-page.show { display: block; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 28px; flex-wrap: wrap; gap: 12px;
+  }
+  .topbar h1 {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 1px;
+  }
+  .topbar .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn {
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .btn:hover { border-color: var(--text-muted); }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn-primary:hover { opacity: .9; border-color: var(--accent); }
+  .btn-danger {
+    background: var(--surface);
+    color: var(--danger);
+    border-color: var(--danger);
+    font-weight: 600;
+  }
+  .btn-danger:hover { background: var(--danger-soft); }
+  .btn-success {
+    background: var(--success);
+    color: #fff;
+    border-color: var(--success);
+    font-weight: 600;
+  }
+  .btn-success:hover { opacity: .9; border-color: var(--success); }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 20px;
+  }
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .section-head h2 {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .badge {
+    font-size: 12px;
+    background: var(--accent-soft);
+    color: var(--text-muted);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-weight: 400;
+  }
+
+  /* 奖品表格 */
+  .prize-table { width: 100%; border-collapse: collapse; }
+  .prize-table th, .prize-table td {
+    padding: 10px 8px;
+    text-align: left;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+  .prize-table th {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .prize-table tbody tr {
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .prize-table tbody tr:last-child { border-bottom: none; }
+  .prize-table td input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+    transition: border-color .15s;
+  }
+  .prize-table td input:focus { border-color: var(--accent); }
+  .col-name { min-width: 140px; }
+  .col-img { min-width: 180px; }
+  .col-num { width: 100px; }
+  .col-stat { width: 76px; text-align: center; }
+  .col-act { width: 48px; text-align: center; }
+  .img-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .img-cell input[type="text"] { flex: 1; min-width: 120px; }
+  .img-thumb {
+    width: 38px; height: 38px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    object-fit: cover;
+    background: var(--accent-soft);
+  }
+  .upload-btn {
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .upload-btn:hover:not(:disabled) { border-color: var(--text-muted); }
+  .upload-btn:disabled { opacity: .6; cursor: wait; }
+  .oss-tip {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+  .stat-ok { color: var(--success); }
+  .stat-warn { color: var(--warn); }
+  .stat-empty { color: var(--danger); }
+  .del-btn {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 20px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    line-height: 1;
+  }
+  .del-btn:hover { background: var(--danger-soft); }
+
+  .prob-bar {
+    height: 4px;
+    background: var(--accent-soft);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .prob-bar > div {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width .3s;
+  }
+
+  /* 记录列表 */
+  .records-list {
+    max-height: 360px;
+    overflow-y: auto;
+  }
+  .record-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 14px;
+  }
+  .record-item:last-child { border-bottom: none; }
+  .record-item .prize { font-weight: 600; color: var(--text); }
+  .record-item .meta { color: var(--text-muted); font-size: 12px; font-family: monospace; }
+  .empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 36px;
+    font-size: 14px;
+  }
+
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--text);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    z-index: 1000;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity .25s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  .prob-warn {
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .prob-warn.show { display: block; }
+  .prob-warn.danger {
+    background: var(--danger-soft);
+    border-color: #fecaca;
+    color: var(--danger);
+  }
+
+  .table-actions {
+    display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .admin-page { padding: 16px; }
+    .prize-table th, .prize-table td { padding: 8px 4px; font-size: 13px; }
+    .col-stat, .col-act { display: none; }
+    .col-name { min-width: 110px; }
+    .col-num { width: 80px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div class="login-page" id="loginPage">
+  <div class="login-box">
+    <h1>后台管理</h1>
+    <p>请输入管理密码</p>
+    <input type="password" id="pwdInput" placeholder="请输入密码" maxlength="20" autocomplete="off">
+    <button id="loginBtn">登 录</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- 管理后台 -->
+<div class="admin-page" id="adminPage">
+  <div class="topbar">
+    <h1>抽奖系统后台</h1>
+    <div class="actions">
+      <a href="index.html" class="btn" target="_blank">前台抽奖页</a>
+      <button class="btn" id="refreshBtn">刷新</button>
+      <button class="btn btn-danger" id="resetBtn">重置抽奖</button>
+      <button class="btn" id="logoutBtn">退出</button>
+    </div>
+  </div>
+
+  <!-- 奖品配置 -->
+  <div class="section">
+    <div class="section-head">
+      <h2>奖品配置 <span class="badge" id="prizeCount">0 项</span></h2>
+    </div>
+    <div class="prob-warn" id="probWarn"></div>
+    <div class="oss-tip" id="ossTip" style="display:none;">
+      ⚠️ 阿里云 OSS 尚未配置：请在服务器项目目录的 <b>oss-config.json</b> 中填写 region、accessKeyId、accessKeySecret、bucket，保存后自动生效（无需重启）。配置前可手动粘贴图片地址。
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="prize-table">
+        <thead>
+          <tr>
+            <th class="col-name">奖品名称</th>
+            <th class="col-img">图片地址</th>
+            <th class="col-num">中奖概率</th>
+            <th class="col-num">总数量</th>
+            <th class="col-stat">已抽</th>
+            <th class="col-stat">剩余</th>
+            <th class="col-act"></th>
+          </tr>
+        </thead>
+        <tbody id="prizeTbody"></tbody>
+      </table>
+    </div>
+    <div class="table-actions">
+      <button class="btn" id="addPrizeBtn">+ 添加奖品</button>
+      <button class="btn btn-success" id="saveBtn">保存配置</button>
+    </div>
+  </div>
+
+  <!-- 抽奖记录 -->
+  <div class="section">
+    <div class="section-head">
+      <h2>中奖记录 <span class="badge" id="recordCount">0 条</span></h2>
+    </div>
+    <div class="records-list" id="recordsList">
+      <div class="empty">暂无抽奖记录</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TOKEN_KEY = 'lottery_admin_token';
+const getToken = () => localStorage.getItem(TOKEN_KEY);
+const setToken = (t) => localStorage.setItem(TOKEN_KEY, t);
+const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+async function api(method, url, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers['x-admin-token'] = token;
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { clearToken(); showLogin(); throw new Error('未登录'); }
+  if (!res.ok) throw new Error(data.error || '请求失败');
+  return data;
+}
+
+const loginPage = document.getElementById('loginPage');
+const adminPage = document.getElementById('adminPage');
+
+function showLogin() {
+  loginPage.style.display = 'flex';
+  adminPage.classList.remove('show');
+  document.getElementById('pwdInput').value = '';
+  document.getElementById('loginErr').textContent = '';
+}
+function showAdmin() {
+  loginPage.style.display = 'none';
+  adminPage.classList.add('show');
+  loadAll();
+}
+
+document.getElementById('loginBtn').onclick = doLogin;
+document.getElementById('pwdInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const password = document.getElementById('pwdInput').value;
+  const err = document.getElementById('loginErr');
+  err.textContent = '';
+  try {
+    const res = await fetch('api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json();
+    if (res.ok) { setToken(data.token); showAdmin(); }
+    else { err.textContent = data.error || '登录失败'; }
+  } catch (e) { err.textContent = '网络错误'; }
+}
+
+document.getElementById('logoutBtn').onclick = async () => {
+  try { await api('POST', 'api/logout'); } catch (e) {}
+  clearToken();
+  showLogin();
+};
+
+// ---------- 奖品管理 ----------
+let prizes = [];
+
+function esc(s) { return String(s).replace(/"/g, '&quot;'); }
+
+function probPct(i) {
+  const total = prizes.reduce((s, p) => s + Number(p.probability || 0), 0);
+  if (total <= 0) return 0;
+  return (Number(prizes[i].probability) / total * 100).toFixed(1);
+}
+
+function renderPrizes() {
+  const tbody = document.getElementById('prizeTbody');
+  tbody.innerHTML = '';
+  prizes.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    const remain = p.total - p.drawn;
+    const remainCls = remain === 0 ? 'stat-empty' : remain < p.total * 0.3 ? 'stat-warn' : 'stat-ok';
+    tr.innerHTML = `
+      <td class="col-name"><input type="text" value="${esc(p.name)}" data-i="${i}" data-k="name" maxlength="30"></td>
+      <td class="col-img">
+        <div class="img-cell">
+          <img class="img-thumb" src="${esc(p.image || '')}" onerror="this.style.visibility='hidden'" onload="this.style.visibility='visible'">
+          <input type="text" value="${esc(p.image || '')}" data-i="${i}" data-k="image" placeholder="图片地址或上传">
+          <button type="button" class="upload-btn" data-upload="${i}" title="从电脑选择图片上传到阿里云OSS">📁 上传</button>
+        </div>
+      </td>
+      <td class="col-num">
+        <input type="number" value="${p.probability}" data-i="${i}" data-k="probability" min="0" step="0.01">
+        <div class="prob-bar"><div style="width:${probPct(i)}%"></div></div>
+      </td>
+      <td class="col-num"><input type="number" value="${p.total}" data-i="${i}" data-k="total" min="0" step="1"></td>
+      <td class="col-stat">${p.drawn}</td>
+      <td class="col-stat ${remainCls}">${remain}</td>
+      <td class="col-act"><button class="del-btn" data-i="${i}" title="删除">×</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('prizeCount').textContent = prizes.length + ' 项';
+  updateProbWarn();
+}
+
+function updateProbWarn() {
+  const totalProb = prizes.reduce((s, p) => s + Number(p.probability || 0), 0);
+  const warn = document.getElementById('probWarn');
+  if (prizes.length === 0) { warn.classList.remove('show'); return; }
+  if (totalProb <= 0) {
+    warn.textContent = '所有奖品概率之和为 0，将无法抽奖';
+    warn.classList.add('danger');
+  } else {
+    const pcts = prizes.map(p => (Number(p.probability) / totalProb * 100).toFixed(1) + '%').join(' · ');
+    warn.innerHTML = `概率总和 = <b>${totalProb}</b>，实际中奖占比：${pcts}`;
+    warn.classList.remove('danger');
+  }
+  warn.classList.add('show');
+}
+
+document.getElementById('prizeTbody').addEventListener('input', e => {
+  const t = e.target;
+  if (t.tagName !== 'INPUT') return;
+  const i = +t.dataset.i, k = t.dataset.k;
+  if (k === 'name') {
+    prizes[i].name = t.value;
+  } else if (k === 'image') {
+    prizes[i].image = t.value;
+    const thumb = t.closest('tr').querySelector('.img-thumb');
+    if (thumb) { thumb.src = t.value; thumb.style.visibility = t.value ? 'visible' : 'hidden'; }
+  } else {
+    prizes[i][k] = Number(t.value) || 0;
+  }
+  const bar = t.closest('tr').querySelector('.prob-bar > div');
+  if (bar) bar.style.width = probPct(i) + '%';
+  updateProbWarn();
+});
+
+document.getElementById('prizeTbody').addEventListener('click', e => {
+  if (e.target.classList.contains('del-btn')) {
+    prizes.splice(+e.target.dataset.i, 1);
+    renderPrizes();
+  }
+});
+
+/* ---------- 本地选图 -> 上传阿里云 OSS ---------- */
+const fileInput = document.createElement('input');
+fileInput.type = 'file';
+fileInput.accept = 'image/jpeg,image/png,image/gif,image/webp,image/bmp';
+fileInput.style.display = 'none';
+document.body.appendChild(fileInput);
+let uploadTarget = null;
+
+document.getElementById('prizeTbody').addEventListener('click', e => {
+  const btn = e.target.closest('[data-upload]');
+  if (!btn) return;
+  uploadTarget = { index: +btn.dataset.upload, btn };
+  fileInput.value = '';
+  fileInput.click();
+});
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files && fileInput.files[0];
+  if (!file || !uploadTarget) return;
+  const { index, btn } = uploadTarget;
+  if (file.size > 5 * 1024 * 1024) { toast('图片不能超过 5MB'); return; }
+
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '上传中 0%';
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', 'api/upload');
+  xhr.setRequestHeader('x-admin-token', getToken());
+  xhr.upload.onprogress = ev => {
+    if (ev.lengthComputable) {
+      btn.textContent = `上传中 ${Math.round(ev.loaded / ev.total * 100)}%`;
+    }
+  };
+  xhr.onload = () => {
+    btn.disabled = false;
+    btn.textContent = originalText;
+    let data = {};
+    try { data = JSON.parse(xhr.responseText); } catch (_) {}
+    if (xhr.status === 200 && data.url) {
+      prizes[index].image = data.url;
+      const tr = btn.closest('tr');
+      const input = tr.querySelector('input[data-k="image"]');
+      const thumb = tr.querySelector('.img-thumb');
+      if (input) input.value = data.url;
+      if (thumb) { thumb.src = data.url; thumb.style.visibility = 'visible'; }
+      toast('图片已上传至 OSS，记得点击"保存配置"');
+    } else {
+      toast(data.error || '上传失败');
+    }
+  };
+  xhr.onerror = () => {
+    btn.disabled = false;
+    btn.textContent = originalText;
+    toast('上传失败：网络错误');
+  };
+  const fd = new FormData();
+  fd.append('file', file);
+  xhr.send(fd);
+});
+
+// 登录后检查 OSS 配置状态，未配置则显示提示条
+async function checkOssStatus() {
+  try {
+    const s = await api('GET', 'api/oss-status');
+    document.getElementById('ossTip').style.display = s.configured ? 'none' : 'block';
+  } catch (e) {}
+}
+
+document.getElementById('addPrizeBtn').onclick = () => {
+  prizes.push({ id: '', name: '新奖品', probability: 10, total: 1, image: '', drawn: 0 });
+  renderPrizes();
+};
+
+document.getElementById('saveBtn').onclick = async () => {
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  try {
+    for (const p of prizes) {
+      if (!p.name.trim()) throw new Error('奖品名称不能为空');
+      if (p.probability < 0) throw new Error('概率不能为负数');
+      if (p.total < 0) throw new Error('数量不能为负数');
+    }
+    const data = await api('PUT', 'api/prizes', { prizes });
+    prizes = data;
+    toast('配置已保存，实时生效');
+    renderPrizes();
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+document.getElementById('resetBtn').onclick = async () => {
+  if (!confirm('确定重置？将清空所有抽奖记录并恢复全部库存。')) return;
+  try {
+    const data = await api('POST', 'api/reset');
+    prizes = data.prizes;
+    toast('已重置');
+    renderPrizes();
+    loadRecords();
+  } catch (e) {
+    toast(e.message);
+  }
+};
+
+document.getElementById('refreshBtn').onclick = loadAll;
+
+// ---------- 记录 ----------
+async function loadRecords() {
+  try {
+    const records = await api('GET', 'api/records');
+    const list = document.getElementById('recordsList');
+    document.getElementById('recordCount').textContent = records.length + ' 条';
+    if (records.length === 0) {
+      list.innerHTML = '<div class="empty">暂无抽奖记录</div>';
+      return;
+    }
+    list.innerHTML = records.map(r => `
+      <div class="record-item">
+        <span class="prize">${esc(r.prizeName)}${r.test ? ' <span style="color:#b45309;font-size:12px;border:1px solid #f0c36d;border-radius:4px;padding:0 5px;margin-left:4px;">测试</span>' : ''}</span>
+        <span class="meta">${r.time} · ${r.id.slice(0, 8)}</span>
+      </div>
+    `).join('');
+  } catch (e) {}
+}
+
+async function loadAll() {
+  try {
+    prizes = await api('GET', 'api/prizes');
+    renderPrizes();
+  } catch (e) {}
+  loadRecords();
+  checkOssStatus();
+}
+
+if (getToken()) showAdmin();
+else showLogin();
+
+setInterval(loadRecords, 5000);
+</script>
+</body>
+</html>

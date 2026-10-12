@@ -1,0 +1,13 @@
+# 依赖
+node_modules/
+
+# 阿里云 OSS 密钥配置（切勿提交到仓库！参考 README 手动创建）
+oss-config.json
+
+# 运行时数据（抽奖记录、WAL 日志）
+data/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.log

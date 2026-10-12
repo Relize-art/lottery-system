@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>幸运抽奖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #ffffff;
+    --text: #111827;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --accent: #111827;
+    --accent-soft: #f3f4f6;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 36px 16px 48px;
+  }
+
+  .header { text-align: center; margin-bottom: 36px; }
+  .title {
+    font-size: clamp(28px, 6vw, 42px);
+    font-weight: 900;
+    letter-spacing: 3px;
+  }
+  .subtitle {
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  /* ---------- 奖品横向流动区 ---------- */
+  .marquee {
+    width: 100%;
+    max-width: 1000px;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation-name: flow;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-duration: var(--duration, 20s);
+    will-change: transform;
+  }
+  /* 弹窗打开时暂停背景滚动，释放 GPU 给弹窗动画 */
+  body.modal-open .marquee-track { animation-play-state: paused; }
+  /* 内容从左向右匀速平移：两组完全相同的卡片，-50% 与 0 位置画面一致，实现无缝循环 */
+  @keyframes flow {
+    from { transform: translateX(-50%); }
+    to   { transform: translateX(0); }
+  }
+  .marquee-group {
+    display: flex;
+    flex-shrink: 0;
+  }
+  .prize-card {
+    width: clamp(140px, 22vw, 200px);
+    margin: 0 clamp(8px, 1.5vw, 16px);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    flex-shrink: 0;
+  }
+  .prize-card .img-box {
+    width: 100%;
+    aspect-ratio: 1;
+    background: var(--accent-soft);
+    position: relative;
+    overflow: hidden;
+  }
+  .prize-card img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .prize-card .img-fallback {
+    position: absolute; inset: 0;
+    display: none;
+    align-items: center; justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 10px;
+    line-height: 1.4;
+  }
+  .prize-card .img-box.broken img { display: none; }
+  .prize-card .img-box.broken .img-fallback { display: flex; }
+  .prize-card .name {
+    padding: 12px 8px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .marquee-empty {
+    display: none;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 60px 0;
+  }
+
+  /* ---------- 抽奖按钮 ---------- */
+  .draw-area {
+    margin-top: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .draw-btn {
+    position: relative;
+    min-width: 220px;
+    padding: 18px 56px;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(17, 24, 39, .18);
+    transition: transform .15s ease, opacity .2s, box-shadow .2s;
+  }
+  .draw-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(17,24,39,.22); }
+  .draw-btn:active:not(:disabled) { transform: scale(.97); }
+  .draw-btn.test-mode { background: linear-gradient(135deg,#b45309,#d97706); }
+  /* 加载状态 */
+  .draw-btn.loading {
+    cursor: wait;
+    opacity: .85;
+  }
+  .draw-btn .spinner {
+    display: none;
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    vertical-align: -4px;
+    margin-right: 10px;
+    animation: spin .7s linear infinite;
+  }
+  .draw-btn.loading .spinner { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* 不可点击状态 */
+  .draw-btn:disabled {
+    background: #d1d5db;
+    color: #6b7280;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+  .draw-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+  }
+
+  .stats {
+    margin-top: 36px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .stat {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 18px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+  .stat b { display: block; font-size: 17px; color: var(--text); margin-top: 2px; }
+
+  .admin-link {
+    position: fixed;
+    bottom: 18px; right: 18px;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-decoration: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    z-index: 10;
+    transition: all .2s;
+  }
+  .admin-link:hover { color: var(--text); border-color: var(--text-muted); }
+  .staff-link { right: auto; left: 18px; }
+
+  /* 工作人员测试模式徽标 */
+  .test-badge {
+    position: fixed;
+    top: 14px; left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: #111827;
+    color: #fde68a;
+    font-size: 13px;
+    letter-spacing: 1px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    box-shadow: 0 6px 20px rgba(17,24,39,.25);
+    z-index: 50;
+  }
+  .test-badge.show { display: flex; }
+  .test-badge a { color: #fca5a5; cursor: pointer; text-decoration: underline; font-size: 12px; }
+
+  /* 工作人员解锁弹窗 */
+  .unlock-mask {
+    position: fixed; inset: 0;
+    background: rgba(17,24,39,.45);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 120;
+    padding: 20px;
+  }
+  .unlock-mask.show { display: flex; animation: fadeIn .2s ease; }
+  .unlock-dialog {
+    background: #fff;
+    width: 100%;
+    max-width: 340px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    padding: 26px 24px 22px;
+    box-shadow: 0 20px 50px rgba(17,24,39,.2);
+  }
+  .unlock-title { font-size: 18px; font-weight: 700; color: var(--text); text-align: center; }
+  .unlock-desc { font-size: 12px; color: var(--text-muted); text-align: center; margin: 8px 0 16px; line-height: 1.6; }
+  .unlock-dialog input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .unlock-dialog input:focus { border-color: #111827; }
+  .unlock-err { color: #dc2626; font-size: 12px; min-height: 18px; margin-top: 8px; }
+  .unlock-actions { display: flex; gap: 10px; margin-top: 6px; }
+  .unlock-btn {
+    flex: 1;
+    padding: 11px 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .unlock-btn:hover { border-color: var(--text-muted); }
+  .unlock-btn.primary { background: #111827; color: #fff; border-color: #111827; }
+  .unlock-btn.primary:hover { background: #000; }
+
+  /* 轻提示 */
+  .toast {
+    position: fixed;
+    top: 22px; left: 50%;
+    transform: translateX(-50%) translateY(-12px);
+    background: rgba(17,24,39,.92);
+    color: #fff;
+    font-size: 14px;
+    padding: 11px 22px;
+    border-radius: 10px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s, transform .25s;
+    z-index: 200;
+    max-width: 86vw;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- 中奖弹窗（随机边框图 + 留白区纯文字） ---------- */
+  .modal-mask {
+    position: fixed; inset: 0;
+    background: rgba(17, 24, 39, .55);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  .modal-mask.show { display: flex; animation: fadeIn .25s ease; }
+  /* 仅弹窗显示期间提升合成层：动画走 GPU，不触发重排重绘 */
+  .modal-mask.show .frame-card,
+  .modal-mask.show .prize-img-wrap,
+  .modal-mask.show .img-glow,
+  .modal-mask.show .img-shine::before { will-change: transform, opacity; backface-visibility: hidden; }
+
+  .frame-card {
+    position: relative;
+    width: min(96vw, 1000px);
+    animation: popIn .45s cubic-bezier(.2, 1.3, .4, 1) both;
+  }
+  .frame-img {
+    width: 100%;
+    display: block;
+    border-radius: 10px;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .frame-content {
+    position: absolute;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: clamp(8px, 2vw, 22px);
+  }
+  .frame-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(6px, 1.4vh, 16px);
+    min-width: 0;
+  }
+  .prize-img-wrap {
+    position: relative;
+    width: clamp(62px, 15vw, 110px);
+    aspect-ratio: 1;
+    flex-shrink: 0;
+    display: none;
+  }
+  .prize-img-wrap.show {
+    display: block;
+    animation: imgEntrance .72s cubic-bezier(.34,1.56,.64,1) both,
+               imgFloat 2.8s ease-in-out .72s infinite;
+  }
+  .modal-prize-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 22px;
+    border: 4px solid rgba(255,255,255,.9);
+    box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    background: rgba(255,255,255,.9);
+    display: block;
+  }
+  /* 背后彩色呼吸光晕（用渐变软边替代 blur，避免动画期逐帧重绘） */
+  .img-glow {
+    position: absolute;
+    inset: -16%;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(255,255,255,.65) 0%, rgba(255,255,255,.28) 42%, rgba(255,255,255,0) 70%);
+    animation: glowPulse 1.7s ease-in-out .72s infinite;
+  }
+  /* 斜向高光循环扫过图片 */
+  .img-shine {
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .img-shine::before {
+    content: '';
+    position: absolute;
+    top: -60%;
+    left: 0;
+    width: 52%;
+    height: 220%;
+    background: linear-gradient(105deg, transparent 18%, rgba(255,255,255,.85) 50%, transparent 82%);
+    transform: translateX(-160%) skewX(-16deg);
+    animation: shineSweep 2.8s ease-in-out 1.1s infinite;
+  }
+  /* 入场：大角度翻转 + 回弹过冲 */
+  @keyframes imgEntrance {
+    0%   { opacity: 0; transform: scale(.2) rotate(-200deg); }
+    55%  { opacity: 1; transform: scale(1.15) rotate(10deg); }
+    75%  { transform: scale(.95) rotate(-5deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0); }
+  }
+  /* 持续：轻微上下漂浮 */
+  @keyframes imgFloat {
+    0%, 100% { transform: translateY(0) rotate(0); }
+    50%      { transform: translateY(-6px) rotate(3deg); }
+  }
+  @keyframes glowPulse {
+    0%, 100% { opacity: .4; transform: scale(.82); }
+    50%      { opacity: 1; transform: scale(1.14); }
+  }
+  @keyframes shineSweep {
+    0%       { transform: translateX(-160%) skewX(-16deg); }
+    55%, 100% { transform: translateX(460%) skewX(-16deg); }
+  }
+  .modal-label {
+    font-size: clamp(13px, 2.6vw, 20px);
+    letter-spacing: 4px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .modal-prize {
+    font-size: clamp(18px, 4.6vw, 38px);
+    font-weight: 900;
+    line-height: 1.3;
+    word-break: break-word;
+    text-wrap: balance;
+  }
+  .modal-confirm {
+    border: none;
+    font-family: inherit;
+    font-size: clamp(14px, 3.2vw, 21px);
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: clamp(9px, 1.5vh, 15px) clamp(22px, 4.5vw, 58px);
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(0,0,0,.25);
+    transition: transform .12s;
+    white-space: nowrap;
+  }
+  .modal-confirm:active { transform: scale(.95); }
+
+  /* 5 种边框：右边界止于右侧卡通角色之前，文字在左、物品图在右 */
+  /* ① 紫色蝴蝶 · 暗底白字（角色约在 67% 之后） */
+  .f1 .frame-content { left: 9%; right: 35%; top: 21%; bottom: 16%; }
+  .f1 .modal-prize-img { border-color: rgba(233,222,255,.9); box-shadow: 0 8px 26px rgba(76,29,149,.7); }
+  .f1 .img-glow { background: radial-gradient(circle, rgba(167,139,250,.85) 0%, rgba(167,139,250,0) 66%); }
+  .f1 .modal-label { color: #d8c9ff; }
+  .f1 .modal-prize { color: #ffffff; text-shadow: 0 2px 12px rgba(124,58,237,.9); }
+  .f1 .modal-confirm { background: linear-gradient(180deg,#a78bfa,#6d28d9); color: #fff; }
+
+  /* ② 樱花 · 浅底深玫红字（角色约在 68% 之后） */
+  .f2 .frame-content { left: 17%; right: 35%; top: 19%; bottom: 15%; }
+  .f2 .modal-prize-img { border-color: #fff; box-shadow: 0 8px 24px rgba(190,80,120,.35); }
+  .f2 .img-glow { background: radial-gradient(circle, rgba(251,113,133,.8) 0%, rgba(251,113,133,0) 66%); }
+  .f2 .modal-label { color: #b4537a; }
+  .f2 .modal-prize { color: #831f47; }
+  .f2 .modal-confirm { background: linear-gradient(180deg,#fb7185,#e11d48); color: #fff; }
+
+  /* ③ 金色雕花 · 浅蓝底深藏青字（角色约在 69% 之后） */
+  .f3 .frame-content { left: 15%; right: 33%; top: 16%; bottom: 12%; }
+  .f3 .modal-prize-img { border-color: #f8e6b0; box-shadow: 0 8px 24px rgba(120,90,30,.35); }
+  .f3 .img-glow { background: radial-gradient(circle, rgba(246,215,122,.9) 0%, rgba(246,215,122,0) 66%); }
+  .f3 .modal-label { color: #8a6d2c; }
+  .f3 .modal-prize { color: #1f3d6e; }
+  .f3 .modal-confirm { background: linear-gradient(180deg,#f6d77a,#c9962b); color: #3a2a05; }
+
+  /* ④ 星空胶囊 · 深蓝底白字（角色约在 68% 之后） */
+  .f4 .frame-content { left: 10%; right: 35%; top: 15%; bottom: 11%; }
+  .f4 .modal-prize-img { border-color: rgba(255,240,200,.95); box-shadow: 0 8px 26px rgba(30,64,175,.7); }
+  .f4 .img-glow { background: radial-gradient(circle, rgba(255,233,168,.9) 0%, rgba(255,233,168,0) 66%); }
+  .f4 .modal-label { color: #c7d8f5; }
+  .f4 .modal-prize { color: #ffffff; text-shadow: 0 2px 12px rgba(56,130,246,.8); }
+  .f4 .modal-confirm { background: linear-gradient(180deg,#ffe9a8,#d4a017); color: #2e2200; }
+
+  /* ⑤ 蓝水晶 · 浅底深蓝字（角色头发约在 63% 之后） */
+  .f5 .frame-content { left: 12%; right: 38%; top: 13%; bottom: 12%; }
+  .f5 .modal-prize-img { border-color: #dff1ff; box-shadow: 0 8px 24px rgba(29,110,180,.4); }
+  .f5 .img-glow { inset: -10%; background: radial-gradient(circle, rgba(96,165,250,.85) 0%, rgba(96,165,250,0) 66%); }
+  .f5 .modal-label { color: #2573b8; }
+  .f5 .modal-prize { color: #0c4a6e; }
+  .f5 .modal-confirm { background: linear-gradient(180deg,#60a5fa,#2563eb); color: #fff; }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes popIn { from { opacity: 0; transform: scale(.85) translateY(14px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+  @media (max-width: 480px) {
+    body { padding: 28px 0 40px; }
+    .draw-area { margin-top: 36px; }
+    .draw-btn { min-width: 190px; padding: 16px 44px; font-size: 16px; }
+    .frame-content { letter-spacing: 1px; gap: 8px; }
+    .frame-text { gap: 6px; }
+    .modal-label { letter-spacing: 1px; font-size: 12px; }
+    .modal-prize { font-size: 16px; }
+    .modal-confirm { font-size: 13px; letter-spacing: 2px; padding: 7px 18px; }
+    .prize-img-wrap { width: clamp(48px, 16vw, 64px); }
+    .img-glow { inset: -4%; }
+    .f5 .img-glow { inset: 0; }
+    .modal-prize-img { border-width: 2px; border-radius: 14px; }
+    .img-shine { border-radius: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="title">幸运抽奖</div>
+  <div class="subtitle">奖品持续滚动 · 点击按钮揭晓好运</div>
+</div>
+
+<!-- 上半部分：奖品图片横向流动 -->
+<div class="marquee" id="marquee">
+  <div class="marquee-track" id="track">
+    <div class="marquee-group" id="groupA"></div>
+    <div class="marquee-group" id="groupB"></div>
+  </div>
+  <div class="marquee-empty" id="marqueeEmpty">暂无可抽取的奖品</div>
+</div>
+
+<!-- 抽奖按钮 -->
+<div class="draw-area">
+  <button class="draw-btn" id="drawBtn" disabled>
+    <span class="spinner"></span><span class="btn-text">立即抽奖</span>
+  </button>
+  <div class="draw-hint" id="drawHint">每人都有机会，祝您好运</div>
+</div>
+
+<div class="stats">
+  <div class="stat">奖品总数<b id="totalCount">0</b></div>
+  <div class="stat">剩余奖品<b id="remainCount">0</b></div>
+  <div class="stat">已抽取<b id="drawnCount">0</b></div>
+</div>
+
+<a href="admin.html" class="admin-link">后台管理</a>
+<a href="javascript:void(0)" class="admin-link staff-link" id="staffUnlock">工作人员解锁</a>
+<div class="test-badge" id="testBadge">测试模式 · 可多次抽奖<a id="exitTest">退出测试</a></div>
+
+<!-- 工作人员解锁弹窗 -->
+<div class="unlock-mask" id="unlockMask">
+  <div class="unlock-dialog">
+    <div class="unlock-title">工作人员解锁</div>
+    <div class="unlock-desc">输入后台管理密码后，当前页面可进行多次抽奖（测试模式）</div>
+    <input type="password" id="unlockPwd" placeholder="请输入后台管理密码" maxlength="30" autocomplete="off">
+    <div class="unlock-err" id="unlockErr"></div>
+    <div class="unlock-actions">
+      <button class="unlock-btn" id="unlockCancel">取消</button>
+      <button class="unlock-btn primary" id="unlockOk">解 锁</button>
+    </div>
+  </div>
+</div>
+
+<!-- 轻提示 toast -->
+<div class="toast" id="toast"></div>
+
+<!-- 中奖弹窗 -->
+<div class="modal-mask" id="modal">
+  <div class="frame-card" id="frameCard">
+    <img class="frame-img" id="frameImg" src="" alt="中奖提示框">
+    <div class="frame-content">
+      <div class="frame-text">
+        <div class="modal-label" id="modalLabel">恭喜您抽中</div>
+        <div class="modal-prize" id="modalPrize">-</div>
+        <button class="modal-confirm" id="modalConfirm">确 认</button>
+      </div>
+      <div class="prize-img-wrap" id="modalPrizeImgWrap">
+        <span class="img-glow"></span>
+        <img class="modal-prize-img" id="modalPrizeImg" src="" alt="中奖物品">
+        <span class="img-shine"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const marquee = document.getElementById('marquee');
+const track = document.getElementById('track');
+const groupA = document.getElementById('groupA');
+const groupB = document.getElementById('groupB');
+const marqueeEmpty = document.getElementById('marqueeEmpty');
+const drawBtn = document.getElementById('drawBtn');
+const btnText = drawBtn.querySelector('.btn-text');
+const drawHint = document.getElementById('drawHint');
+const modal = document.getElementById('modal');
+const frameCard = document.getElementById('frameCard');
+const frameImg = document.getElementById('frameImg');
+const modalPrize = document.getElementById('modalPrize');
+const modalLabel = document.getElementById('modalLabel');
+const modalPrizeImg = document.getElementById('modalPrizeImg');
+const modalPrizeImgWrap = document.getElementById('modalPrizeImgWrap');
+
+const SCROLL_SPEED = 55; // 像素/秒，恒定流速
+let prizes = [];
+let drawing = false;
+let lastSignature = '';
+
+/* ---------- 参与者身份 & 工作人员测试模式 ----------
+   普通用户：浏览器生成长期身份 ID（localStorage），服务端据此保证每人限抽一次
+   测试模式：输入后台密码后换取管理员 token（sessionStorage），该标签页内可多次抽奖 */
+function getParticipantId() {
+  let id = localStorage.getItem('lottery_uid');
+  if (!id) {
+    id = (crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    localStorage.setItem('lottery_uid', id);
+  }
+  return id;
+}
+const participantId = getParticipantId();
+let testMode = !!sessionStorage.getItem('lottery_test_token');
+let userLocked = false;   // 普通用户是否已抽过（以服务端记录为准）
+const testBadge = document.getElementById('testBadge');
+function testToken() { return sessionStorage.getItem('lottery_test_token') || ''; }
+function refreshTestBadge() {
+  testBadge.classList.toggle('show', testMode);
+  drawBtn.classList.toggle('test-mode', testMode);
+}
+
+async function checkMyDraw() {
+  if (testMode) { userLocked = false; return; }
+  try {
+    const res = await fetch('api/my-draw?participantId=' + encodeURIComponent(participantId));
+    const d = await res.json();
+    userLocked = !!d.drawn;
+  } catch (e) { /* 状态查询失败不阻塞，抽奖时服务端仍会强校验 */ }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 阿里云 OSS 图片走实时缩放+webp：原图数 MB -> 几十 KB，滚动与弹窗动画不再因大图解码/合成掉帧
+function ossThumb(url, w) {
+  if (!url || !/aliyuncs\.com\//.test(url)) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}x-oss-process=image/resize,w_${w}/format,webp`;
+}
+
+// 当前可抽取奖品池：有剩余库存且概率 > 0
+function availablePrizes(list) {
+  return list.filter(p => p.drawn < p.total && p.probability > 0);
+}
+
+function cardHTML(p) {
+  const hasImg = p.image && /^https?:\/\//.test(p.image);
+  return `
+    <div class="prize-card">
+      <div class="img-box${hasImg ? '' : ' broken'}">
+        ${hasImg ? `<img src="${esc(ossThumb(p.image, 400))}" alt="${esc(p.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('broken')">` : ''}
+        <div class="img-fallback">${esc(p.name)}</div>
+      </div>
+      <div class="name">${esc(p.name)}</div>
+    </div>`;
+}
+
+function renderMarquee() {
+  const pool = availablePrizes(prizes);
+  const signature = pool.map(p => p.id + ':' + (p.total - p.drawn)).join('|');
+
+  // 统计口径：仅真实奖品，"谢谢惠顾/谢谢参与"类安慰奖不计入
+  const realPrizes = prizes.filter(p => !/谢谢/.test(p.name));
+  const total = realPrizes.reduce((s, p) => s + p.total, 0);
+  const drawn = realPrizes.reduce((s, p) => s + p.drawn, 0);
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('drawnCount').textContent = drawn;
+  document.getElementById('remainCount').textContent = total - drawn;
+
+  // 奖品池无变化时不重建 DOM，保证流动动画不中断、不闪烁
+  if (signature === lastSignature) {
+    if (!drawing) syncBtn();
+    return;
+  }
+
+  if (pool.length === 0) {
+    groupA.innerHTML = '';
+    groupB.innerHTML = '';
+    marqueeEmpty.style.display = 'block';
+    setBtnDisabled('奖品已抽完');
+    lastSignature = signature;
+    return;
+  }
+  marqueeEmpty.style.display = 'none';
+
+  // 奖品较少时复制多份，保证内容能铺满并平滑滚动
+  let cards = pool.map(cardHTML).join('');
+  const minCards = 8;
+  let rounds = 1;
+  if (pool.length * rounds < minCards) rounds = Math.ceil(minCards / pool.length);
+  const content = cards.repeat(rounds);
+  groupA.innerHTML = content;
+  groupB.innerHTML = content;
+
+  // 根据内容宽度计算动画时长，保证不同奖品数量下流速恒定
+  requestAnimationFrame(() => {
+    const groupWidth = groupA.scrollWidth;
+    if (groupWidth > 0) {
+      track.style.setProperty('--duration', (groupWidth / SCROLL_SPEED) + 's');
+    }
+  });
+
+  if (!drawing) syncBtn();
+  lastSignature = signature;
+}
+
+/* ---------- 按钮状态 ---------- */
+function setBtnDefault() {
+  drawBtn.disabled = false;
+  drawBtn.classList.remove('loading');
+  btnText.textContent = '立即抽奖';
+  drawHint.textContent = testMode ? '测试模式：可重复抽奖，不计入每人一次限制' : '每人都有机会，祝您好运';
+}
+function setBtnLoading() {
+  drawing = true;
+  drawBtn.disabled = true;
+  drawBtn.classList.add('loading');
+  btnText.textContent = '抽奖中';
+  drawHint.textContent = '正在抽取，请稍候…';
+}
+function setBtnDisabled(text) {
+  drawing = false;
+  drawBtn.disabled = true;
+  drawBtn.classList.remove('loading');
+  btnText.textContent = text || '暂不可抽';
+  drawHint.textContent = '所有奖品已被抽完';
+}
+function setBtnAlready() {
+  drawing = false;
+  drawBtn.disabled = true;
+  drawBtn.classList.remove('loading');
+  btnText.textContent = '您已抽过奖';
+  drawHint.textContent = '每人限抽一次，感谢您的参与';
+}
+// 按 奖品池 / 本人是否已抽 / 测试模式 统一决定按钮可用状态
+function syncBtn() {
+  if (drawing) return;
+  if (availablePrizes(prizes).length === 0) { setBtnDisabled('奖品已抽完'); return; }
+  if (!testMode && userLocked) { setBtnAlready(); return; }
+  setBtnDefault();
+}
+
+/* ---------- 抽奖 ---------- */
+function doDraw() {
+  if (drawBtn.disabled || drawing) return;
+  setBtnLoading();
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (testMode) headers['x-admin-token'] = testToken();
+
+  fetch('api/draw', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ participantId })
+  })
+    .then(async r => ({ ok: r.ok, status: r.status, data: await r.json() }))
+    .then(({ ok, status, data }) => {
+      if (!ok) {
+        const err = new Error(data.error || '抽奖失败，请重试');
+        err.code = data.code;
+        err.status = status;
+        throw err;
+      }
+      // 短暂悬念后公布结果
+      setTimeout(() => {
+        // 同步本地库存
+        const target = prizes.find(p => p.id === data.prize.id);
+        if (target) target.drawn = data.prize.drawn;
+        drawing = false;
+        if (!testMode) userLocked = true;   // 普通用户抽完即锁定（服务端同样强校验）
+        showResultModal(data.prize.name, data.prize.image);
+        syncBtn();
+      }, 700);
+    })
+    .catch(err => {
+      drawing = false;
+      if (err.code === 'ALREADY_DRAWN') {
+        userLocked = true;
+        syncBtn();
+        return;
+      }
+      // 测试模式 token 失效（如服务重启）：清除后提示重新解锁
+      if (testMode && (err.status === 401 || err.status === 409)) {
+        sessionStorage.removeItem('lottery_test_token');
+        testMode = false;
+        refreshTestBadge();
+        checkMyDraw().then(syncBtn);
+        toast('测试登录已失效，请重新点击「工作人员解锁」');
+        return;
+      }
+      toast(err.message || '抽奖失败，请重试');
+      syncBtn();
+    });
+}
+
+/* ---------- 随机边框样式弹窗 ---------- */
+// 5 张提示边框图，抽奖后随机展示一张；文字定位与配色见 CSS .f1 ~ .f5
+const FRAMES = [
+  { cls: 'f1', src: 'frames/frame1.jpg' },
+  { cls: 'f2', src: 'frames/frame2.jpg' },
+  { cls: 'f3', src: 'frames/frame3.jpg' },
+  { cls: 'f4', src: 'frames/frame4.jpg' },
+  { cls: 'f5', src: 'frames/frame5.jpg' }
+];
+const MODAL_LABELS = ['恭喜您抽中', '中奖结果', '好运降临', '抽奖结果揭晓'];
+
+// 页面打开后预加载边框图，避免中奖瞬间图片闪烁
+FRAMES.forEach(f => { const im = new Image(); im.src = f.src; });
+
+function showResultModal(name, imgUrl) {
+  const f = FRAMES[Math.floor(Math.random() * FRAMES.length)];
+  frameCard.className = 'frame-card ' + f.cls;
+  frameImg.src = f.src;
+  modalLabel.textContent = MODAL_LABELS[Math.floor(Math.random() * MODAL_LABELS.length)];
+  modalPrize.textContent = name;
+
+  // 中奖物品图：有效则显示在文字右侧，无图/加载失败则隐藏（动画由 wrapper 承载）
+  modalPrizeImgWrap.classList.remove('show');
+  modalPrizeImg.removeAttribute('src');
+  const thumbUrl = ossThumb(imgUrl, 300);
+  if (thumbUrl) {
+    modalPrizeImg.onload = () => modalPrizeImgWrap.classList.add('show');
+    modalPrizeImg.onerror = () => modalPrizeImgWrap.classList.remove('show');
+    modalPrizeImg.src = thumbUrl;
+    if (modalPrizeImg.complete && modalPrizeImg.naturalWidth > 0) {
+      modalPrizeImgWrap.classList.add('show');
+    }
+  }
+
+  modal.classList.add('show');
+  document.body.classList.add('modal-open');
+}
+function closeModal() {
+  modal.classList.remove('show');
+  document.body.classList.remove('modal-open');
+}
+
+document.getElementById('modalConfirm').onclick = closeModal;
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+drawBtn.addEventListener('click', doDraw);
+
+/* ---------- 工作人员解锁 / 退出测试 ---------- */
+const unlockMask = document.getElementById('unlockMask');
+const unlockPwd = document.getElementById('unlockPwd');
+const unlockErr = document.getElementById('unlockErr');
+const unlockOk = document.getElementById('unlockOk');
+const toastEl = document.getElementById('toast');
+let toastTimer = null;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+}
+function openUnlock() {
+  unlockErr.textContent = '';
+  unlockPwd.value = '';
+  unlockMask.classList.add('show');
+  document.body.classList.add('modal-open');
+  setTimeout(() => unlockPwd.focus(), 50);
+}
+function closeUnlock() {
+  unlockMask.classList.remove('show');
+  document.body.classList.remove('modal-open');
+}
+async function submitUnlock() {
+  const pwd = unlockPwd.value.trim();
+  if (!pwd) { unlockErr.textContent = '请输入密码'; return; }
+  unlockOk.disabled = true;
+  try {
+    const res = await fetch('api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd })
+    });
+    const data = await res.json();
+    if (!res.ok) { unlockErr.textContent = data.error || '密码错误'; return; }
+    sessionStorage.setItem('lottery_test_token', data.token);
+    testMode = true;
+    userLocked = false;
+    refreshTestBadge();
+    syncBtn();
+    closeUnlock();
+    toast('已进入测试模式，可多次抽奖');
+  } catch (e) {
+    unlockErr.textContent = '网络错误，请稍后重试';
+  } finally {
+    unlockOk.disabled = false;
+  }
+}
+
+document.getElementById('staffUnlock').onclick = openUnlock;
+document.getElementById('unlockCancel').onclick = closeUnlock;
+unlockOk.onclick = submitUnlock;
+unlockPwd.addEventListener('keydown', e => { if (e.key === 'Enter') submitUnlock(); });
+unlockMask.addEventListener('click', e => { if (e.target === unlockMask) closeUnlock(); });
+document.getElementById('exitTest').onclick = () => {
+  sessionStorage.removeItem('lottery_test_token');
+  testMode = false;
+  refreshTestBadge();
+  checkMyDraw().then(syncBtn);
+  toast('已退出测试模式');
+};
+refreshTestBadge();
+
+/* ---------- 数据加载 ---------- */
+async function loadPrizes() {
+  try {
+    const res = await fetch('api/prizes');
+    const list = await res.json();
+    prizes = list;
+    renderMarquee();
+  } catch (e) {
+    console.error('加载奖品失败', e);
+  }
+}
+
+// 先确认本人是否已抽过，再加载奖品并刷新按钮，避免已抽用户看到可点击的按钮
+(async function init() {
+  await checkMyDraw();
+  await loadPrizes();
+  syncBtn();
+})();
+// 轮询：后台配置或库存变化后实时同步（内容未变化时不重建 DOM，避免流动中断闪烁）
+setInterval(async () => {
+  await loadPrizes();
+  await checkMyDraw();
+  syncBtn();
+}, 3000);
+</script>
+</body>
+</html>
